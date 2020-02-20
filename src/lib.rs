@@ -108,6 +108,7 @@ pub struct Queue<T> {
     qqh : NfqueueQueueHandle,
     cb  : Option<fn (&Message, &mut T) -> ()>,
     data: T,
+    pub stop: bool,
 }
 
 
@@ -119,6 +120,7 @@ impl <T: Send> Queue<T> {
             qqh : std::ptr::null_mut(),
             cb: None,
             data: data,
+            stop: false,
         };
     }
 
@@ -264,8 +266,16 @@ impl <T: Send> Queue<T> {
         let buf_len = buf.len() as libc::size_t;
 
         loop {
+            if self.stop {
+                return;
+            }
+
             let rc = unsafe { libc::recv(fd,buf_ptr,buf_len,0) };
             if rc < 0 { panic!("error in recv()"); };
+
+            if self.stop {
+                return;
+            }
 
             let rv = unsafe { nfq_handle_packet(self.qh, buf_ptr, rc as libc::c_int) };
             if rv < 0 { println!("error in nfq_handle_packet()"); }; // not critical
